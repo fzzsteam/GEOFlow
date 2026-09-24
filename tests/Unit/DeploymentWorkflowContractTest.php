@@ -46,6 +46,16 @@ final class DeploymentWorkflowContractTest extends TestCase
         self::assertStringNotContainsString('run_release:', $workflow);
     }
 
+    public function test_workflow_builds_frontend_assets_before_running_php_tests(): void
+    {
+        $workflow = $this->workflow();
+
+        self::assertMatchesRegularExpression(
+            '/- name: Install JavaScript dependencies\s+run: npm ci.*?- name: Build production assets\s+run: npm run build.*?- name: Run PHP test suite\s+run: composer test/s',
+            $workflow,
+        );
+    }
+
     public function test_workflow_uses_configurable_acr_and_aliyun_credentials(): void
     {
         $workflow = $this->workflow();

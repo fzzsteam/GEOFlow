@@ -64,11 +64,14 @@ jobs:
       - name: Check PHP formatting
         run: vendor/bin/pint --test
 
-      - name: Run PHP test suite
-        run: composer test
-
       - name: Install JavaScript dependencies
         run: npm ci
+
+      - name: Build production assets
+        run: npm run build
+
+      - name: Run PHP test suite
+        run: composer test
 
       - name: Run JavaScript test suite
         run: npm run test:analytics
