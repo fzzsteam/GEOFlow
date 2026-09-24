@@ -153,12 +153,12 @@ jobs:
           ACR_IMAGE_REGISTRY: ${{ env.ACR_IMAGE_REGISTRY }}
           ACR_NAMESPACE: ${{ env.ACR_NAMESPACE }}
           ACR_REPOSITORY: ${{ env.ACR_REPOSITORY }}
-          SAE_APP_ID: ${{ secrets.SAE_APP_ID }}
+          SAE_APP_ID: ${{ secrets.SAE_PROD_APP_ID }}
         run: |
           set -euo pipefail
 
           if [[ -z "$SAE_APP_ID" ]]; then
-            echo "必须配置 SAE_APP_ID，指向唯一的 GEOFlow SAE 应用。" >&2
+            echo "必须配置 GitHub Actions Secret SAE_PROD_APP_ID，指向唯一的 GEOFlow SAE 应用。" >&2
             exit 1
           fi
           if [[ -z "${ALIBABACLOUD_ACCESS_KEY_ID:-}" || -z "${ALIBABACLOUD_ACCESS_KEY_SECRET:-}" || -z "${ALIBABACLOUD_REGION_ID:-}" ]]; then

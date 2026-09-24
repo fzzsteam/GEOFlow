@@ -97,7 +97,7 @@ final class DeploymentWorkflowContractTest extends TestCase
             'secrets.ACR_PASSWORD',
             'secrets.ALIYUN_SAE_AK_ID',
             'secrets.ALIYUN_SAE_AK_SECRET',
-            'secrets.SAE_APP_ID',
+            'secrets.SAE_PROD_APP_ID',
         ] as $configuration) {
             self::assertStringContainsString($configuration, $workflow);
         }
@@ -115,8 +115,10 @@ final class DeploymentWorkflowContractTest extends TestCase
     {
         $workflow = $this->workflow();
 
-        self::assertSame(1, substr_count($workflow, 'secrets.SAE_APP_ID'));
+        self::assertSame(1, substr_count($workflow, 'secrets.SAE_PROD_APP_ID'));
+        self::assertStringContainsString('SAE_APP_ID: ${{ secrets.SAE_PROD_APP_ID }}', $workflow);
         self::assertStringContainsString('if [[ -z "$SAE_APP_ID" ]]; then', $workflow);
+        self::assertStringContainsString('必须配置 GitHub Actions Secret SAE_PROD_APP_ID', $workflow);
         self::assertStringContainsString('--AppId "$SAE_APP_ID"', $workflow);
 
         foreach ([

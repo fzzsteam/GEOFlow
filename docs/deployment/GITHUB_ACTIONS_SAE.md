@@ -59,7 +59,7 @@ SAE 自动部署仍使用 commit SHA tag，不依赖可变的 `latest`：
 | `ACR_PASSWORD` | ACR 登录密码或访问凭证 |
 | `ALIYUN_SAE_AK_ID` | 调用 SAE API 的阿里云 AccessKey ID |
 | `ALIYUN_SAE_AK_SECRET` | 调用 SAE API 的阿里云 AccessKey Secret |
-| `SAE_APP_ID` | 唯一 GEOFlow SAE 应用 ID |
+| `SAE_PROD_APP_ID` | 唯一 GEOFlow SAE 应用 ID；工作流将它注入内部变量 `SAE_APP_ID` |
 
 当前 workflow 没有关联 GitHub Environment，因此 Environment 专属 Secrets 不会自动提供给它。若使用 Environment 专属 Secrets，需要同时在 workflow job 上声明对应的 `environment:`。
 

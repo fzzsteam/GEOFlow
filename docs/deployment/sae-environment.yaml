@@ -1,0 +1,87 @@
+# GEOFlow on Alibaba Cloud SAE runtime environment variables.
+# Replace every placeholder before applying this configuration.
+# Store passwords and keys as SAE Secrets, not plain-text variables.
+# Mount NAS to /var/www/html/storage separately in SAE storage settings.
+
+APP_NAME: "GEOFlow"
+APP_ENV: "production"
+APP_DEBUG: "false"
+APP_KEY: "base64:替换为固定的Laravel密钥"
+APP_URL: "https://替换为正式域名"
+SITE_URL: "https://替换为正式域名"
+APP_TIMEZONE: "Asia/Shanghai"
+TRUSTED_PROXIES: "REMOTE_ADDR"
+
+# Used only when installing GEOFlow into a dedicated empty database for the first time.
+GEOFLOW_ADMIN_USERNAME: "admin"
+GEOFLOW_ADMIN_EMAIL: "替换为管理员邮箱"
+GEOFLOW_ADMIN_PASSWORD: "替换为强密码（SAE Secret）"
+
+GEOFLOW_SAE_RUNTIME: "true"
+GEOFLOW_ALLOW_MISSING_ENV_FILE: "true"
+SAE_ROLE: "all"
+AUTO_WAIT_FOR_DB: "true"
+AUTO_FIX_STORAGE_PERMISSIONS: "true"
+
+# Keep release actions disabled by default. See the first-install note below.
+SAE_RELEASE_CONFIRM: "false"
+AUTO_MIGRATE: "false"
+AUTO_INSTALL_ONCE: "false"
+AUTO_OPTIMIZE: "false"
+
+DB_CONNECTION: "mysql"
+DB_HOST: "替换为RDS的内网连接地址"
+DB_PORT: "3306"
+DB_DATABASE: "geoflow"
+DB_USERNAME: "替换为数据库账号"
+DB_PASSWORD: "替换为数据库密码（SAE Secret）"
+GEOFLOW_VECTOR_CAPABILITY_CACHE_TTL_SECONDS: "60"
+
+REDIS_CLIENT: "phpredis"
+REDIS_HOST: "替换为Redis的内网连接地址"
+REDIS_PORT: "6379"
+REDIS_PASSWORD: "替换为Redis密码；未启用密码则留空（SAE Secret）"
+QUEUE_CONNECTION: "redis"
+CACHE_STORE: "redis"
+CACHE_LIMITER_STORE: "redis"
+
+FILESYSTEM_DISK: "local"
+FILESYSTEM_LOCAL_ROOT: "/var/www/html/storage/app/private"
+FILESYSTEM_PUBLIC_ROOT: "/var/www/html/storage/app/public"
+
+GEOFLOW_NGINX_PRIMARY_HOST: "替换为正式域名，不带https://"
+GEOFLOW_NGINX_PRIMARY_ALIASES: ""
+GEOFLOW_NGINX_HOSTED_ROOT_DOMAIN: "invalid"
+GEOFLOW_NGINX_PUBLIC_SCHEME: "https"
+GEOFLOW_NGINX_PUBLIC_PORT: "443"
+GEOFLOW_PHP_FPM_UPSTREAM: "127.0.0.1:9000"
+GEOFLOW_NGINX_RESOLVER: "127.0.0.11"
+GEOFLOW_REVERB_UPSTREAM: "127.0.0.1:18080"
+
+REVERB_APP_ID: "geoflow-reverb-app"
+REVERB_APP_KEY: "替换为Reverb密钥（SAE Secret）"
+REVERB_APP_SECRET: "替换为Reverb密钥（SAE Secret）"
+BROADCAST_CONNECTION: "reverb"
+REVERB_HOST: "替换为正式域名"
+REVERB_PORT: "443"
+REVERB_SCHEME: "https"
+REVERB_BROADCAST_HOST: "127.0.0.1"
+REVERB_BROADCAST_PORT: "18080"
+REVERB_BROADCAST_SCHEME: "http"
+REVERB_SERVER_HOST: "127.0.0.1"
+REVERB_SERVER_PORT: "18080"
+REVERB_ALLOWED_ORIGINS: "替换为正式域名"
+
+LOG_CHANNEL: "stderr"
+LOG_LEVEL: "warning"
+SESSION_DRIVER: "database"
+SESSION_SECURE_COOKIE: "true"
+MAIL_MAILER: "log"
+
+# First install only: use these overrides only for a dedicated, backed-up,
+# empty GEOFlow database after MySQL compatibility has been verified.
+# Set all four to "true" for the one-time install, then restore them to "false".
+# SAE_RELEASE_CONFIRM: "true"
+# AUTO_MIGRATE: "true"
+# AUTO_INSTALL_ONCE: "true"
+# AUTO_OPTIMIZE: "true"
