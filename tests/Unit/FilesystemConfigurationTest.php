@@ -2,23 +2,60 @@
 
 namespace Tests\Unit;
 
-use Illuminate\Filesystem\FilesystemAdapter;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 final class FilesystemConfigurationTest extends TestCase
 {
-    public function test_oss_disk_is_available_in_the_production_dependency_graph(): void
+    public function test_nas_mount_environment_values_override_local_storage_roots(): void
     {
-        config()->set('filesystems.disks.oss.key', 'test-key');
-        config()->set('filesystems.disks.oss.secret', 'test-secret');
-        config()->set('filesystems.disks.oss.region', 'cn-shenzhen');
-        config()->set('filesystems.disks.oss.bucket', 'test-bucket');
+        $localRoot = '/mnt/geoflow/storage/app/private';
+        $publicRoot = '/mnt/geoflow/storage/app/public';
+        $overrides = [
+            'FILESYSTEM_LOCAL_ROOT' => $localRoot,
+            'FILESYSTEM_PUBLIC_ROOT' => $publicRoot,
+        ];
+        $originalEnvironment = [];
 
-        $disk = Storage::disk('oss');
+        foreach ($overrides as $name => $value) {
+            $originalEnvironment[$name] = [
+                'getenv' => getenv($name),
+                'env_exists' => array_key_exists($name, $_ENV),
+                'env_value' => $_ENV[$name] ?? null,
+                'server_exists' => array_key_exists($name, $_SERVER),
+                'server_value' => $_SERVER[$name] ?? null,
+            ];
 
-        $this->assertInstanceOf(FilesystemAdapter::class, $disk);
-        $this->assertSame('s3', config('filesystems.disks.oss.driver'));
-        $this->assertSame('local', config('filesystems.default'));
+            putenv($name.'='.$value);
+            $_ENV[$name] = $value;
+            $_SERVER[$name] = $value;
+        }
+
+        try {
+            $filesystems = require config_path('filesystems.php');
+        } finally {
+            foreach ($originalEnvironment as $name => $original) {
+                $original['getenv'] === false
+                    ? putenv($name)
+                    : putenv($name.'='.$original['getenv']);
+
+                if ($original['env_exists']) {
+                    $_ENV[$name] = $original['env_value'];
+                } else {
+                    unset($_ENV[$name]);
+                }
+
+                if ($original['server_exists']) {
+                    $_SERVER[$name] = $original['server_value'];
+                } else {
+                    unset($_SERVER[$name]);
+                }
+            }
+        }
+
+        $this->assertSame('local', $filesystems['default']);
+        $this->assertSame('local', $filesystems['disks']['local']['driver']);
+        $this->assertSame('local', $filesystems['disks']['public']['driver']);
+        $this->assertSame($localRoot, $filesystems['disks']['local']['root']);
+        $this->assertSame($publicRoot, $filesystems['disks']['public']['root']);
     }
 }

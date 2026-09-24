@@ -88,6 +88,15 @@ check_processes() {
   [[ "${SAE_HEALTHCHECK_CHECK_PROCESSES:-true}" == "true" ]] || return 0
 
   case "$ROLE" in
+    all)
+      process_contains nginx
+      process_contains php-fpm
+      process_contains 'queue:work'
+      process_contains 'geoflow:work-ai-quality'
+      process_contains 'geoflow:work-ai-optimization'
+      process_contains 'schedule:work'
+      process_contains 'reverb:start'
+      ;;
     web)
       process_contains nginx
       process_contains php-fpm
@@ -120,7 +129,7 @@ check_processes() {
 }
 
 case "$ROLE" in
-  web)
+  all|web)
     check_http
     check_database
     check_redis

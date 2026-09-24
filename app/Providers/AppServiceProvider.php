@@ -51,6 +51,7 @@ use Closure;
 use GuzzleHttp\Utils;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Events\CommandStarting;
+use Illuminate\Foundation\Application;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Queue\Events\JobPopping;
@@ -87,7 +88,7 @@ class AppServiceProvider extends ServiceProvider
             fn (array $state) => $this->app->make(RecoveryReconciliation::class)->assertReady($state),
         ));
         $this->app->bind(AiModelWriteLock::class, DatabaseAiModelWriteLock::class);
-        $this->app->singleton(VectorStoreAdapter::class, fn ($app): VectorStoreAdapter => new VectorDatabaseAdapter(
+        $this->app->singleton(VectorStoreAdapter::class, fn (Application $app): VectorStoreAdapter => new VectorDatabaseAdapter(
             $app['db']->connection(),
             (int) config('geoflow.vector_capability_cache_ttl_seconds', 60),
         ));

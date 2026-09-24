@@ -162,3 +162,34 @@ RUN ln -sT /var/www/html/storage/app/public public/storage \
 
 ENTRYPOINT ["/usr/local/bin/geoflow-entrypoint-prod"]
 CMD ["php-fpm", "-F"]
+
+# The default app-runtime target is kept for the production Compose topology.
+# SAE can build the target below instead: it is the single-container image
+# that owns the public Web process and every resident background process.
+FROM app-runtime AS sae-all
+
+USER root
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gettext-base \
+        nginx \
+        supervisor \
+    && rm -f /etc/nginx/conf.d/default.conf /etc/nginx/sites-enabled/default \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY docker/nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY docker/nginx/geoflow-app.conf /etc/nginx/snippets/geoflow-app.conf.template
+COPY docker/sae-service.sh /usr/local/bin/geoflow-sae-service
+COPY docker/supervisor/geoflow-all.conf /etc/supervisor/geoflow-all.conf
+COPY docker/entrypoint.sae.sh /usr/local/bin/geoflow-entrypoint-sae
+
+RUN chmod +x \
+        /usr/local/bin/geoflow-sae-service \
+        /usr/local/bin/geoflow-entrypoint-sae \
+    && mkdir -p /etc/nginx/conf.d /etc/nginx/snippets
+
+EXPOSE 80
+
+ENTRYPOINT ["/usr/local/bin/geoflow-entrypoint-sae"]
+CMD ["--role=all"]

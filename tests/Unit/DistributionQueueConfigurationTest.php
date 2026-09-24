@@ -252,6 +252,14 @@ class DistributionQueueConfigurationTest extends TestCase
             'fastcgi_param HTTP_X_REAL_IP $remote_addr;',
             $nginxApp
         );
+        $this->assertStringContainsString(
+            'fastcgi_param HTTP_HOST $http_host;',
+            $nginxApp
+        );
+        $this->assertStringContainsString(
+            'fastcgi_param HTTP_X_FORWARDED_HOST $http_host;',
+            $nginxApp
+        );
         $this->assertStringContainsString('GEOFLOW_NGINX_PUBLIC_PORT', $nginxTemplate);
         $this->assertStringContainsString('HTTP_X_FORWARDED_PORT $geoflow_forwarded_port', $nginxApp);
         $this->assertStringContainsString('geoflow_hosted_surface', $nginxTemplate);

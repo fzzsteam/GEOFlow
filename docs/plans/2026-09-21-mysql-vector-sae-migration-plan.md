@@ -8,7 +8,7 @@
 
 1. 支持阿里云 RDS MySQL 8.0 的原生 `VECTOR` 与向量距离函数。
 2. 保留 Redis 队列、缓存、锁和 Reverb 所需的运行时能力。
-3. 支持 OSS 作为业务文件存储，并兼容 NAS 作为 SAE 多实例共享目录。
+3. SAE 首期使用 NAS 作为持久化文件存储；OSS 不纳入本次部署配置。
 4. 将当前 Docker Compose 生产拓扑拆解为适合 SAE 的 Web、Worker、Scheduler 和 Reverb 部署单元。
 5. 保留 PostgreSQL/pgvector 路径，避免把本地开发、既有实例或未来迁移路径锁死在 MySQL 上。
 6. 为 MySQL fresh install、已有 MySQL 数据迁移、向量检索、队列和 SAE 部署建立可重复的测试与验收步骤。
@@ -44,8 +44,8 @@
                   └────────────┬────────────┘
                                │
                   ┌────────────▼────────────┐
-                  │ OSS + optional NAS      │
-                  │ objects + shared files  │
+                  │ SAE NAS                 │
+                  │ shared persistent files │
                   └─────────────────────────┘
 ```
 
@@ -58,8 +58,8 @@
 
 ### 文件存储策略
 
-- 首次 SAE 上线默认使用 NAS 保持现有 `Storage::path`、`rename`、压缩包和解析器的 POSIX 文件语义；不把 OSS 直接伪装成已经支持随机路径读写的本地盘。
-- OSS 先作为显式的 S3 兼容磁盘，用于已经适配的对象、备份和归档；上传、图片、知识库源文件、主题包和 Markdown 导出等路径要逐项完成流式/临时文件改造后，才能把对应业务切换到 OSS。
+- 首次 SAE 上线只使用 NAS，保持现有 `Storage::path`、`rename`、压缩包和解析器的 POSIX 文件语义；不把 OSS 伪装成已经支持随机路径读写的本地盘。
+- 如果后续要改用 OSS，需另行完成上传、图片、知识库源文件、主题包和 Markdown 导出等路径的流式/临时文件适配，再单独评估和验收；本次不添加 OSS 运行时驱动或密钥配置。
 - 不把 NAS 当数据库或 Redis 使用；Web、普通 Worker、知识库 Worker 使用一致的 NAS 挂载点和目录约定。
 - SAE 容器本地磁盘只用于临时文件、缓存和日志，不能作为唯一业务文件存储。
 
@@ -80,7 +80,7 @@
 
 - 建立 `codex/mysql-sae-support` 功能分支。
 - 记录当前工作区状态、基线提交和测试环境。
-- 只使用脱敏的 MySQL/Redis/OSS 配置；不把真实密码、AccessKey 或连接串写入仓库。
+- 只使用脱敏的 MySQL/Redis 配置；不把真实密码、AccessKey 或连接串写入仓库。
 - 增加 MySQL/向量能力的配置契约和健康检查说明。
 - 为本地/CI 准备 MySQL 8.0 向量测试依赖；若 CI 无法提供 RDS 特有向量能力，使用明确的 capability-gated 测试，不把 SQLite 测试伪装成 MySQL 覆盖。
 
@@ -173,41 +173,40 @@
 
 验收：MySQL Feature 测试覆盖创建、更新、删除、并发、分页、JSON、任务调度和 URL revision；慢查询和重复索引不在上线后才发现。
 
-### Phase 5：OSS/NAS/Redis 配置与安全
+### Phase 5：NAS/Redis 配置与安全
 
-- 完善 `config/filesystems.php` 的 OSS endpoint、region、bucket、path-style 与可见性配置。
-- 保留 `FILESYSTEM_DISK=local` 作为本地开发和 SAE 首期 NAS 默认；已经完成对象流式/临时文件适配的业务，再按目录切换到 OSS。
+- 保留 `FILESYSTEM_DISK=local`，将 local/public 文件根目录挂载到 NAS，避免改变现有路径读写语义。
 - 明确哪些目录必须使用 NAS；避免让 cache/session/log 写入需要高延迟共享存储的路径。
 - Redis 统一配置 queue/cache/locks/Reverb，确认所有 SAE Worker 使用同一个 Redis endpoint/DB/prefix。
 - 生产密钥使用 SAE 环境变量/Secret，不把 `.env.prod` 和 AccessKey 提交仓库。
-- RDS、Redis、OSS 使用最小权限、VPC 白名单、TLS/内网 endpoint（如果实例配置支持）。
+- RDS、Redis 使用最小权限、VPC 白名单、TLS/内网 endpoint（如果实例配置支持）。
 
-验收：上传、下载、导出、队列、缓存锁、Reverb 连接和多实例文件访问均有测试或部署检查项。
+验收：上传、下载、导出、队列、缓存锁、Reverb 连接和 NAS 文件访问均有测试或部署检查项。
 
 ### Phase 6：容器与 SAE 部署适配
 
 - 生产 PHP 镜像增加 `pdo_mysql`，保留 Redis、curl、pcntl、zip 等现有运行时能力。
 - 应用镜像通过 ACR/等价镜像仓库发布；镜像 tag 固定到版本或 commit，不使用不可追踪的 `latest`。
-- SAE 发布构建两个不可变镜像：`Dockerfile.prod` 的应用/Worker 镜像，以及以它为基础、由 `Dockerfile.sae-web` 生成的 Nginx + PHP-FPM Web 镜像；GitHub Runner 用公网 ACR 地址构建，SAE 发布参数可使用同一仓库的 VPC 地址。
+- SAE 发布构建一个不可变最终镜像：`Dockerfile.prod` 的 `sae-all` target 同时包含 Nginx、PHP-FPM、Supervisor 和全部后台进程；GitHub Runner 用公网 ACR 地址构建，SAE 发布参数可使用同一仓库的 VPC 地址。
 - `docker-compose.prod.yml` 继续作为本地/自托管参考；新增 SAE 部署说明和每个进程的启动命令，不把 Compose 中的 PostgreSQL/Redis 容器搬进 SAE 生产。
-- 提供独立的 `.env.sae.example`，不把 Compose 的自动迁移/首次安装开关直接复制到 SAE 常驻进程。
+- 提供独立的 `.env.sae.example`，默认关闭自动迁移/首次安装；单应用启动时只有显式设置 `SAE_RELEASE_CONFIRM=true` 才允许执行 release action。
 - Web 入口保证 `/up` 健康检查、HTTPS 反代、可信代理和 WebSocket/Reverb 路由正确。
-- SAE Web 镜像不得依赖 `app:9000` 或 `reverb:18080` 这类 Compose 网络别名；PHP-FPM 使用同容器 socket/localhost，上游 Reverb 使用可配置内网地址。
-- Worker 设置与现有任务 timeout/retry_after 对齐，避免重复执行长任务；每个队列按资源和吞吐独立伸缩。
-- Scheduler 只保留一个活跃副本，依赖 Redis lock 和 `onOneServer`。
-- Reverb 单独部署；不需要实时功能时通过显式配置关闭并验证前端不会假定连接存在。
-- NAS 挂载点和 OSS 访问策略在 Web/Worker 之间一致；常驻进程不执行数据库迁移或首次安装。
-- 发布流程单独运行一次 release/migration job：迁移、空库首次安装和配置缓存完成后才放开常驻副本。
+- 统一镜像不得依赖 `app:9000` 或 `reverb:18080` 这类 Compose 网络别名；PHP-FPM 和 Reverb 使用同容器 `127.0.0.1` 上游。
+- Worker 设置与现有任务 timeout/retry_after 对齐，避免重复执行长任务；所有队列和 Web 共享 SAE 资源，不能再独立伸缩。
+- Scheduler 在统一容器中只运行一个副本；初期 SAE 保持单副本，扩容前必须验证 Redis lock 和 `onOneServer`。
+- Reverb 与 Nginx 同容器，通过 Nginx `/reverb` 反向代理给外部网关；WebSocket Upgrade 头必须保留。
+- NAS 挂载点在 Web/Worker 之间一致；启动前 release action 仍默认关闭。
+- 发布流程使用同一个 SAE 应用：必要时通过 `SAE_RELEASE_CONFIRM`、`AUTO_MIGRATE`、`AUTO_INSTALL_ONCE` 和 `AUTO_OPTIMIZE` 控制启动前迁移/首次安装；不再创建独立 release 应用。
 - 内置 Updater/Unix socket 不直接照搬到 SAE；生产升级优先采用镜像发布与 SAE 版本切换，Updater 能力需单独验证。
 
 #### GitHub Actions 自动发布
 
-参考 `/home/yuanjiawei/AIProject/fzzs/case_site/.github/workflows/deploy-sae.yml` 的已验证结构，但不直接复制其单容器 Next.js 假设：
+参考 `/home/yuanjiawei/AIProject/fzzs/case_site/.github/workflows/deploy-sae.yml` 的已验证结构，并将 GEOFlow 的多个 Laravel 进程放入同一容器由 Supervisor 管理：
 
 - checkout → 依赖/测试 → Buildx → ACR 登录 → 固定 commit tag 构建推送 → `aliyun sae DeployApplication`；
 - ACR Personal 使用 `provenance: false` 和 `sbom: false`，避免不兼容 OCI attestation manifest；
 - ACR、SAE region、SAE app id、镜像仓库和部署环境全部从 GitHub Secrets/Variables 注入；
-- workflow 先部署 Web 应用，再按显式开关更新 Worker、AI Quality 前台/回填、AI Optimization、Scheduler、Knowledge 和 Reverb 应用，避免一个发布动作意外重启所有角色；
+- workflow 只构建并部署一个 `sae-all` 镜像到唯一 `SAE_APP_ID`，所有角色由该容器内的 Supervisor 启动；
 - 生产部署使用 commit tag，不把 `latest` 作为唯一可回滚标识；
 - 部署步骤输出镜像 tag 和 SAE 应用目标；发布后的健康检查由 SAE 探针/`sae-healthcheck.sh` 完成；
 - GitHub Actions 只负责构建和触发部署，不把 RDS migration、Redis flush、OSS 删除或线上数据迁移放进默认 push workflow；数据库迁移使用独立、受保护的 workflow 或人工批准的 release job；
@@ -221,13 +220,12 @@ Variables: ACR_LOGIN_REGISTRY, ACR_IMAGE_REGISTRY(optional),
            COMPOSER_PACKAGIST_MIRROR(optional)
 Secrets:   ACR_USERNAME, ACR_PASSWORD,
            ALIYUN_SAE_AK_ID, ALIYUN_SAE_AK_SECRET,
-           SAE_WEB_APP_ID, SAE_WORKER_APP_ID, SAE_KNOWLEDGE_APP_ID,
-           SAE_SCHEDULER_APP_ID, SAE_REVERB_APP_ID
+           SAE_APP_ID
 ```
 
-真实应用环境变量（DB、Redis、OSS、APP_KEY、AI keys）不进入 GitHub workflow 日志，使用 SAE 应用配置/Secret 注入。
+真实应用环境变量（DB、Redis、APP_KEY、AI keys）不进入 GitHub workflow 日志，使用 SAE 应用配置/Secret 注入。
 
-验收：每个 SAE 进程能独立启动；Web、队列、调度、实时通信、健康检查和日志均可回读；重启/扩容后业务文件仍可访问。
+验收：统一 SAE 容器内的 Nginx、PHP-FPM、队列、调度、实时通信、健康检查和日志均可回读；重启后业务文件仍可访问；单副本下后台任务能够持续消费。
 
 ### Phase 7：测试、验收与上线 Runbook
 
@@ -235,15 +233,15 @@ Secrets:   ACR_USERNAME, ACR_PASSWORD,
 
 - 静态检查：Pint、PHP syntax、配置缓存、Compose/YAML 校验；
 - 单元测试：数据库能力/向量 adapter、维度/距离/fallback；
-- Feature 测试：MySQL migrations、知识库同步/检索、AI 质量、任务、URL revision、OSS 文件；
+- Feature 测试：MySQL migrations、知识库同步/检索、AI 质量、任务、URL revision、NAS 文件配置；
 - 集成测试：真实 RDS MySQL 测试库 + Redis；不对生产库写入；
 - 容器测试：镜像启动、`php artisan about`、`migrate --force`、`/up`；
-- SAE 验收：最小发布、日志、队列、定时任务、WebSocket、OSS/NAS、扩缩容和重启；
+- SAE 验收：最小发布、日志、队列、定时任务、WebSocket、NAS、扩缩容和重启；
 - 性能：1 核/2 GB 测试实例基准，向量召回延迟、队列积压、连接数、内存和慢查询。
 
 上线顺序：
 
-1. 备份 RDS、Redis 关键配置、OSS/NAS 关键文件。
+1. 备份 RDS、Redis 关键配置和 NAS 关键文件。
 2. 部署新镜像到独立 SAE 测试应用。
 3. 指向测试库和测试 Bucket，执行迁移与数据核对。
 4. 验收登录、文章、任务、AI、知识库、文件、队列、调度、Reverb。
@@ -255,7 +253,7 @@ Secrets:   ACR_USERNAME, ACR_PASSWORD,
 
 - `mysql-audit`：PostgreSQL/pgvector/raw SQL/驱动分支审计。
 - `migration-strategy`：迁移阻断点、fresh-install 与升级路径。
-- `sae-deployment`：Docker、入口脚本、Nginx、Worker/Scheduler/Reverb/OSS/NAS 部署资料。
+- `sae-deployment`：Docker、入口脚本、Nginx、Worker/Scheduler/Reverb/NAS 部署资料。
 - `mysql-adapter`：数据库能力/向量适配器和单元测试。
 - `mysql-migrations`：不与 adapter 重叠的 Schema/迁移补丁。
 - `sae-tests`：部署配置、容器启动与验收测试；只读或使用隔离测试环境。
@@ -266,7 +264,7 @@ Secrets:   ACR_USERNAME, ACR_PASSWORD,
 
 - MySQL fresh install 路径、PostgreSQL 路径和迁移分支已实现并完成静态契约检查；真实 RDS fresh install 仍待隔离库验收。
 - RDS MySQL 向量函数探测路径已接入；知识库写入和检索仍需在真实 RDS 向量列上验收。
-- Redis 队列/缓存/锁、NAS 存储和 SAE 网络连通性仍需在隔离 SAE 应用验收；OSS 仍按目录逐项适配。
+- Redis 队列/缓存/锁、NAS 存储和 SAE 网络连通性仍需在隔离 SAE 应用验收；OSS 不属于本次部署范围。
 - SAE 所需镜像、进程命令、环境变量、网络和健康检查文档完整。
 - 至少一轮隔离环境端到端验收通过。
 - 所有 PHP 改动已格式化，聚焦测试和 CI 相关检查通过。

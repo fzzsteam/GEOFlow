@@ -6,7 +6,7 @@ use PHPUnit\Framework\TestCase;
 
 final class DeploymentWorkflowContractTest extends TestCase
 {
-    public function test_workflow_builds_and_pushes_the_php_production_image_for_amd64(): void
+    public function test_workflow_builds_and_pushes_one_unified_sae_image_for_amd64(): void
     {
         $workflow = $this->workflow();
 
@@ -17,41 +17,33 @@ final class DeploymentWorkflowContractTest extends TestCase
         self::assertStringContainsString('docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4', $workflow);
         self::assertStringContainsString('docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7', $workflow);
         self::assertStringContainsString('file: docker/Dockerfile.prod', $workflow);
-        self::assertStringContainsString('file: docker/Dockerfile.sae-web', $workflow);
+        self::assertStringContainsString('target: sae-all', $workflow);
         self::assertStringContainsString('platforms: linux/amd64', $workflow);
         self::assertMatchesRegularExpression('/provenance:\s*false/', $workflow);
         self::assertMatchesRegularExpression('/sbom:\s*false/', $workflow);
         self::assertStringContainsString(':${{ github.sha }}', $workflow);
-        self::assertStringContainsString(':${{ github.sha }}-web', $workflow);
-        self::assertStringContainsString('GEOFLOW_APP_IMAGE=${{ env.ACR_LOGIN_REGISTRY }}', $workflow);
         self::assertStringContainsString('ACR_LOGIN_REGISTRY }}/${{ env.ACR_NAMESPACE }}/${{ env.ACR_REPOSITORY }}:${{ github.sha }}', $workflow);
+        self::assertStringNotContainsString('Dockerfile.sae-web', $workflow);
+        self::assertStringNotContainsString('${{ github.sha }}-web', $workflow);
     }
 
-    public function test_workflow_supports_main_push_and_manual_role_selection(): void
+    public function test_workflow_supports_main_push_and_manual_unified_app_selection(): void
     {
         $workflow = $this->workflow();
 
         self::assertStringContainsString("push:\n    branches:\n      - main", $workflow);
         self::assertStringContainsString('workflow_dispatch:', $workflow);
 
-        foreach (['deploy_web', 'deploy_worker', 'deploy_ai_quality_front', 'deploy_ai_quality_backfill', 'deploy_ai_optimization', 'deploy_knowledge', 'deploy_scheduler', 'deploy_reverb'] as $input) {
-            self::assertStringContainsString("      {$input}:", $workflow);
-        }
-        self::assertStringContainsString('      run_release:', $workflow);
-
-        foreach (['worker', 'knowledge', 'scheduler', 'reverb'] as $role) {
-            self::assertStringContainsString('default: false', $workflow);
-            self::assertStringContainsString('DEPLOY_'.strtoupper($role), $workflow);
-        }
-
+        self::assertStringContainsString('      deploy_app:', $workflow);
+        self::assertStringContainsString('        description: Deploy the unified GEOFlow SAE application', $workflow);
+        self::assertStringContainsString('        default: true', $workflow);
         self::assertStringContainsString(
-            'DEPLOY_WEB: ${{ github.event_name == \'push\' && \'true\' || inputs.deploy_web }}',
+            "if: \${{ needs.build.result == 'success' && (github.event_name == 'push' || inputs.deploy_app == true) }}",
             $workflow,
         );
-        self::assertStringContainsString(
-            'DEPLOY_WORKER: ${{ github.event_name == \'workflow_dispatch\' && inputs.deploy_worker || \'false\' }}',
-            $workflow,
-        );
+        self::assertStringNotContainsString('deploy_web:', $workflow);
+        self::assertStringNotContainsString('deploy_worker:', $workflow);
+        self::assertStringNotContainsString('run_release:', $workflow);
     }
 
     public function test_workflow_uses_configurable_acr_and_aliyun_credentials(): void
@@ -68,7 +60,7 @@ final class DeploymentWorkflowContractTest extends TestCase
             'secrets.ACR_PASSWORD',
             'secrets.ALIYUN_SAE_AK_ID',
             'secrets.ALIYUN_SAE_AK_SECRET',
-            'secrets.SAE_RELEASE_APP_ID',
+            'secrets.SAE_APP_ID',
         ] as $configuration) {
             self::assertStringContainsString($configuration, $workflow);
         }
@@ -76,40 +68,33 @@ final class DeploymentWorkflowContractTest extends TestCase
         self::assertStringContainsString('https://github.com/aliyun/aliyun-cli/releases/download/v3.5.1/aliyun-cli-linux-3.5.1-amd64.tgz', $workflow);
         self::assertStringContainsString('sha256sum --check --status', $workflow);
         self::assertStringContainsString('aliyun sae DeployApplication', $workflow);
-        self::assertStringContainsString('aliyun sae DescribeApplicationStatus', $workflow);
-        self::assertStringContainsString('--ImageUrl "$image"', $workflow);
+        self::assertStringContainsString('--ImageUrl "$app_image"', $workflow);
         self::assertStringContainsString('app_image=', $workflow);
-        self::assertStringContainsString('web_image=', $workflow);
+        self::assertStringNotContainsString('DescribeApplicationStatus', $workflow);
+        self::assertStringNotContainsString('web_image=', $workflow);
     }
 
-    public function test_each_optional_role_requires_a_switch_and_an_app_id(): void
+    public function test_workflow_deploys_exactly_one_sae_application(): void
     {
         $workflow = $this->workflow();
 
-        foreach (['web', 'worker', 'ai-quality-front', 'ai-quality-backfill', 'ai-optimization', 'knowledge', 'scheduler', 'reverb'] as $role) {
-            $secret = 'secrets.SAE_'.strtoupper($role).'_APP_ID';
-            $secret = match ($role) {
-                'ai-quality-front' => 'secrets.SAE_AI_QUALITY_FRONT_APP_ID',
-                'ai-quality-backfill' => 'secrets.SAE_AI_QUALITY_BACKFILL_APP_ID',
-                'ai-optimization' => 'secrets.SAE_AI_OPTIMIZATION_APP_ID',
-                default => $secret,
-            };
-            self::assertStringContainsString($secret, $workflow);
-            $switch = match ($role) {
-                'ai-quality-front' => 'AI_QUALITY_FRONT',
-                'ai-quality-backfill' => 'AI_QUALITY_BACKFILL',
-                'ai-optimization' => 'AI_OPTIMIZATION',
-                default => strtoupper($role),
-            };
-            self::assertStringContainsString(
-                'deploy_if_requested '.$role.' "$DEPLOY_'.$switch.'" "$SAE_'.$switch.'_APP_ID"',
-                $workflow,
-            );
-        }
+        self::assertSame(1, substr_count($workflow, 'secrets.SAE_APP_ID'));
+        self::assertStringContainsString('if [[ -z "$SAE_APP_ID" ]]; then', $workflow);
+        self::assertStringContainsString('--AppId "$SAE_APP_ID"', $workflow);
 
-        self::assertStringContainsString('if [[ "$enabled" != "true" ]]; then', $workflow);
-        self::assertStringContainsString('if [[ -z "$app_id" ]]; then', $workflow);
-        self::assertStringContainsString('未配置 SAE 应用 ID，跳过 SAE 部署', $workflow);
+        foreach ([
+            'SAE_WEB_APP_ID',
+            'SAE_WORKER_APP_ID',
+            'SAE_AI_QUALITY_FRONT_APP_ID',
+            'SAE_AI_QUALITY_BACKFILL_APP_ID',
+            'SAE_AI_OPTIMIZATION_APP_ID',
+            'SAE_KNOWLEDGE_APP_ID',
+            'SAE_SCHEDULER_APP_ID',
+            'SAE_REVERB_APP_ID',
+            'SAE_RELEASE_APP_ID',
+        ] as $legacySecret) {
+            self::assertStringNotContainsString($legacySecret, $workflow);
+        }
     }
 
     public function test_workflow_never_runs_database_installation_or_migration(): void
@@ -121,14 +106,14 @@ final class DeploymentWorkflowContractTest extends TestCase
         self::assertStringNotContainsString('migrate --force', $workflow);
     }
 
-    public function test_release_is_manual_protected_and_runs_before_resident_deployments(): void
+    public function test_release_actions_are_owned_by_the_unified_container(): void
     {
         $workflow = $this->workflow();
 
-        self::assertStringContainsString('needs: [build, release]', $workflow);
-        self::assertStringContainsString("if: \${{ github.event_name == 'workflow_dispatch' && inputs.run_release == true }}", $workflow);
-        self::assertStringContainsString('environment: production', $workflow);
-        self::assertStringContainsString('DescribeApplicationStatus', $workflow);
+        self::assertStringNotContainsString('jobs:\n  release:', $workflow);
+        self::assertStringNotContainsString('SAE_RELEASE_APP_ID', $workflow);
+        self::assertStringContainsString('target: sae-all', $workflow);
+        self::assertStringContainsString('needs: build', $workflow);
     }
 
     private function workflow(): string

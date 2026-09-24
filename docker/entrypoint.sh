@@ -55,25 +55,34 @@ mkdir -p \
   bootstrap/cache \
   storage/app/public \
   storage/app/public/uploads/images \
+  storage/app/private \
+  storage/app/private/uploads \
   storage/app/tmp \
   storage/framework/cache/data \
   storage/framework/sessions \
   storage/framework/views \
   storage/logs
 
-if [ "${AUTO_FIX_STORAGE_PERMISSIONS:-true}" = "true" ]; then
-  if [ "$(id -u)" = "0" ]; then
-    RUNTIME_USER="${RUNTIME_USER:-www-data}"
-    RUNTIME_GROUP="${RUNTIME_GROUP:-www-data}"
-
-    echo "[entrypoint] fixing storage permissions for ${RUNTIME_USER}:${RUNTIME_GROUP}"
-    chown -R "${RUNTIME_USER}:${RUNTIME_GROUP}" storage bootstrap/cache
-    find storage bootstrap/cache -type d -exec chmod 775 {} +
-    find storage bootstrap/cache -type f -exec chmod 664 {} +
-  else
-    echo "[entrypoint] skip permission fix: container is not running as root"
+fix_storage_permissions() {
+  if [ "${AUTO_FIX_STORAGE_PERMISSIONS:-true}" != "true" ]; then
+    return
   fi
-fi
+
+  if [ "$(id -u)" != "0" ]; then
+    echo "[entrypoint] skip permission fix: container is not running as root"
+    return
+  fi
+
+  RUNTIME_USER="${RUNTIME_USER:-www-data}"
+  RUNTIME_GROUP="${RUNTIME_GROUP:-www-data}"
+
+  echo "[entrypoint] fixing storage permissions for ${RUNTIME_USER}:${RUNTIME_GROUP}"
+  chown -R "${RUNTIME_USER}:${RUNTIME_GROUP}" storage bootstrap/cache
+  find storage bootstrap/cache -type d -exec chmod 775 {} +
+  find storage bootstrap/cache -type f -exec chmod 664 {} +
+}
+
+fix_storage_permissions
 
 if [ ! -e public/storage ]; then
   php artisan storage:link --force --no-interaction
@@ -125,5 +134,10 @@ if [ "${AUTO_OPTIMIZE:-false}" = "true" ]; then
     echo "[entrypoint] skip php artisan optimize (no valid APP_KEY in .env)"
   fi
 fi
+
+# The first-install command can create private storage directories after the
+# initial permission repair. Repair once more before handing the container to
+# PHP-FPM/queue workers so those directories remain writable by www-data.
+fix_storage_permissions
 
 exec "$@"

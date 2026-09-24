@@ -39,6 +39,29 @@ class DockerStoragePermissionsConfigurationTest extends TestCase
         }
     }
 
+    public function test_install_entrypoints_repair_storage_after_first_install(): void
+    {
+        $root = dirname(__DIR__, 2);
+
+        foreach (['docker/entrypoint.sh', 'docker/entrypoint.prod.sh', 'docker/entrypoint.sae.sh'] as $entrypointFile) {
+            $entrypoint = file_get_contents($root.'/'.$entrypointFile);
+
+            $this->assertIsString($entrypoint);
+            $this->assertStringContainsString('storage/app/private', $entrypoint, $entrypointFile);
+
+            $installPosition = strrpos($entrypoint, 'php artisan geoflow:install');
+            $repairPosition = strrpos($entrypoint, 'fix_storage_permissions');
+
+            $this->assertIsInt($installPosition, $entrypointFile.' must retain the install command.');
+            $this->assertIsInt($repairPosition, $entrypointFile.' must define a storage permission repair.');
+            $this->assertGreaterThan(
+                $installPosition,
+                $repairPosition,
+                $entrypointFile.' must repair storage after first install can create private directories.'
+            );
+        }
+    }
+
     public function test_only_init_can_automatically_fix_storage_permissions(): void
     {
         $root = dirname(__DIR__, 2);

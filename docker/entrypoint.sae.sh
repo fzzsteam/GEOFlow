@@ -21,6 +21,25 @@ case "${1:-}" in
     ;;
 esac
 
+# The release role is the one-shot owner of migrations and first install. It
+# may create new private storage directories while running as root, so repair
+# the mounted storage by default before resident roles start. Resident roles
+# keep the existing opt-in default because the Web role may mount storage
+# read-only.
+if [ "$ROLE" = "release" ] && [ -z "${AUTO_FIX_STORAGE_PERMISSIONS+x}" ]; then
+  AUTO_FIX_STORAGE_PERMISSIONS=true
+  export AUTO_FIX_STORAGE_PERMISSIONS
+fi
+
+# The unified SAE image runs as root long enough to prepare the mounted
+# storage, then Supervisor starts Laravel processes as www-data. Keep the
+# permission repair opt-out configurable, but make it safe by default for the
+# single-container topology.
+if [ "$ROLE" = "all" ] && [ -z "${AUTO_FIX_STORAGE_PERMISSIONS+x}" ]; then
+  AUTO_FIX_STORAGE_PERMISSIONS=true
+  export AUTO_FIX_STORAGE_PERMISSIONS
+fi
+
 ALLOW_MISSING_ENV_FILE="${GEOFLOW_ALLOW_MISSING_ENV_FILE:-${GEOFLOW_SAE_RUNTIME:-false}}"
 if [ ! -f .env ] && [ "$ALLOW_MISSING_ENV_FILE" != "true" ]; then
   echo "[entrypoint-sae] error: inject Laravel environment variables or set GEOFLOW_SAE_RUNTIME=true" >&2
@@ -43,25 +62,38 @@ if [ -z "${APP_KEY:-}" ] && { [ ! -f .env ] || ! grep -q '^APP_KEY=base64:' .env
   fi
 fi
 
+fix_storage_permissions() {
+  if [ "${AUTO_FIX_STORAGE_PERMISSIONS:-false}" != "true" ]; then
+    return
+  fi
+
+  if [ "$(id -u)" != "0" ]; then
+    echo "[entrypoint-sae] skip permission fix: container is not running as root"
+    return
+  fi
+
+  RUNTIME_USER="${RUNTIME_USER:-www-data}"
+  RUNTIME_GROUP="${RUNTIME_GROUP:-www-data}"
+  echo "[entrypoint-sae] fixing storage permissions for ${RUNTIME_USER}:${RUNTIME_GROUP}"
+  chown -R "${RUNTIME_USER}:${RUNTIME_GROUP}" storage bootstrap/cache
+  find storage bootstrap/cache -type d -exec chmod 775 {} +
+  find storage bootstrap/cache -type f -exec chmod 664 {} +
+}
+
 prepare_runtime() {
   mkdir -p \
     bootstrap/cache \
     storage/app/public \
     storage/app/public/uploads/images \
+    storage/app/private \
+    storage/app/private/uploads \
     storage/app/tmp \
     storage/framework/cache/data \
     storage/framework/sessions \
     storage/framework/views \
     storage/logs
 
-  if [ "${AUTO_FIX_STORAGE_PERMISSIONS:-false}" = "true" ] && [ "$(id -u)" = "0" ]; then
-    RUNTIME_USER="${RUNTIME_USER:-www-data}"
-    RUNTIME_GROUP="${RUNTIME_GROUP:-www-data}"
-    echo "[entrypoint-sae] fixing storage permissions for ${RUNTIME_USER}:${RUNTIME_GROUP}"
-    chown -R "${RUNTIME_USER}:${RUNTIME_GROUP}" storage bootstrap/cache
-    find storage bootstrap/cache -type d -exec chmod 775 {} +
-    find storage bootstrap/cache -type f -exec chmod 664 {} +
-  fi
+  fix_storage_permissions
 
   if [ ! -e public/storage ]; then
     php artisan storage:link --force --no-interaction
@@ -151,6 +183,10 @@ run_release() {
     php artisan optimize --no-interaction
   fi
 
+  # Release actions can create private storage directories after the initial
+  # permission repair. Fix them before resident SAE roles start.
+  fix_storage_permissions
+
   if [ "${AUTO_MIGRATE:-false}" != "true" ] \
     && [ "${AUTO_INSTALL_ONCE:-false}" != "true" ] \
     && [ "${AUTO_OPTIMIZE:-false}" != "true" ]; then
@@ -238,6 +274,22 @@ start_web() {
   fi
 }
 
+start_all() {
+  render_nginx_config
+  php-fpm -t
+
+  # With one SAE application there is no separate release application. Opt-in
+  # release actions run once before Supervisor starts the resident processes;
+  # Laravel migrations and the install command are expected to be idempotent.
+  if [ "${AUTO_MIGRATE:-false}" = "true" ] \
+    || [ "${AUTO_INSTALL_ONCE:-false}" = "true" ] \
+    || [ "${AUTO_OPTIMIZE:-false}" = "true" ]; then
+    run_release
+  fi
+
+  exec supervisord -n -c /etc/supervisor/geoflow-all.conf
+}
+
 prepare_runtime
 
 if [ "$ROLE" = "release" ]; then
@@ -249,16 +301,21 @@ if [ "${AUTO_WAIT_FOR_DB:-true}" = "true" ]; then
   wait_for_database
 fi
 
+if [ "$ROLE" = "web" ]; then
+  start_web
+  exit 0
+fi
+
+if [ "$ROLE" = "all" ]; then
+  start_all
+  exit 0
+fi
+
 if [ "${AUTO_MIGRATE:-false}" = "true" ] \
   || [ "${AUTO_INSTALL_ONCE:-false}" = "true" ] \
   || [ "${AUTO_OPTIMIZE:-false}" = "true" ]; then
   echo "[entrypoint-sae] error: resident SAE roles cannot run release actions" >&2
   exit 64
-fi
-
-if [ "$ROLE" = "web" ]; then
-  start_web
-  exit 0
 fi
 
 if [ "$#" -eq 0 ]; then

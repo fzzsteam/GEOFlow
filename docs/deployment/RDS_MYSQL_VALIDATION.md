@@ -34,19 +34,19 @@ SHOW GRANTS;
 
 预期版本为 MySQL 8.0.x；向量检查应返回 `2` 和 `0`。这只证明 RDS 的向量函数可用，不代表 GEOFlow 表结构已经完成。
 
-## 3. 在隔离库执行 GEOFlow release
+## 3. 在隔离库执行 GEOFlow migration
 
-SAE 常驻 Web、Worker、Scheduler 和 Reverb 不执行迁移。发布顺序是：
+GitHub Actions 只构建并推送一个 `sae-all` 镜像，然后更新唯一的 GEOFlow SAE 应用；工作流本身不执行 migration 或首次安装。应用使用相同镜像，内部包含 Nginx、PHP-FPM、Supervisor、Worker、Scheduler 和 Reverb，不要再创建 Web、Worker、Knowledge、Scheduler、Reverb 等多个 SAE 应用。
 
-1. GitHub Actions 构建并推送应用镜像和 Web 镜像。
-2. 在 SAE 创建/更新一个一次性 `release` 任务，使用应用镜像。
-3. 为 release 注入与 `.env.sae.example` 相同的 DB、Redis、APP_KEY 和网络配置。
-4. 将 release 角色设置为：
+首次迁移前确认目标是 GEOFlow 专用隔离库并已备份。可在唯一 SAE 应用的启动配置中显式打开一次 release 动作：
+
+1. 保持 `SAE_ROLE=all`，并注入与 `.env.sae.example` 一致的 DB、Redis、APP_KEY 和网络配置。
+2. 设置以下环境变量后，通过工作流部署目标 commit 镜像。容器会在启动 Supervisor 常驻进程前执行 release 动作：
 
    ```env
    GEOFLOW_SAE_RUNTIME=true
    GEOFLOW_ALLOW_MISSING_ENV_FILE=true
-   SAE_ROLE=release
+   SAE_ROLE=all
    SAE_RELEASE_CONFIRM=true
    AUTO_WAIT_FOR_DB=true
    AUTO_MIGRATE=true
@@ -54,9 +54,9 @@ SAE 常驻 Web、Worker、Scheduler 和 Reverb 不执行迁移。发布顺序是
    AUTO_OPTIMIZE=true
    ```
 
-5. release 成功后，再滚动更新 Web、Worker、Knowledge、Scheduler 和 Reverb 应用。
+3. 确认 migration 与 `/up` 健康检查成功后，在唯一应用中关闭 `AUTO_MIGRATE`、`AUTO_INSTALL_ONCE` 和 `AUTO_OPTIMIZE`，避免后续普通滚动发布重复执行 release 动作。
 
-只有明确确认目标是全新的 GEOFlow 空库时，才把 `AUTO_INSTALL_ONCE` 改成 `true`。已有数据环境禁止用首次安装流程代替升级迁移。
+如果需要单独运行一次性 release 命令，必须复用同一个 `sae-all` 镜像和应用环境，并使用镜像内的 `docker/entrypoint.sae-release.sh`；这是一次性任务，不是另一个常驻 SAE 应用。只有明确确认目标是全新的 GEOFlow 空库时，才把 `AUTO_INSTALL_ONCE` 改成 `true`。已有数据环境禁止用首次安装流程代替升级迁移。
 
 ## 4. 迁移后检查核心结构
 

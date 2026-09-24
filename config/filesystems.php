@@ -45,7 +45,7 @@ return [
 
         'public' => [
             'driver' => 'local',
-            // 与 local 分开配置，避免把 OSS 当成本地 rename/ZipArchive 盘。
+            // SAE NAS mounts can persist public files without changing local path semantics.
             'root' => env('FILESYSTEM_PUBLIC_ROOT', storage_path('app/public')),
             'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
             'visibility' => 'public',
@@ -69,21 +69,6 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
-            'throw' => false,
-            'report' => false,
-        ],
-
-        // 阿里云 OSS 使用 S3-compatible driver；保留 s3 作为 Laravel 兼容别名。
-        // 只有完成对应业务路径的对象化适配后，才把某个业务切换到该 disk。
-        'oss' => [
-            'driver' => 's3',
-            'key' => env('OSS_ACCESS_KEY_ID', env('AWS_ACCESS_KEY_ID')),
-            'secret' => env('OSS_ACCESS_KEY_SECRET', env('AWS_SECRET_ACCESS_KEY')),
-            'region' => env('OSS_REGION', env('AWS_DEFAULT_REGION')),
-            'bucket' => env('OSS_BUCKET', env('AWS_BUCKET')),
-            'url' => env('OSS_URL', env('AWS_URL')),
-            'endpoint' => env('OSS_ENDPOINT', env('AWS_ENDPOINT')),
-            'use_path_style_endpoint' => env('OSS_USE_PATH_STYLE_ENDPOINT', env('AWS_USE_PATH_STYLE_ENDPOINT', false)),
             'throw' => false,
             'report' => false,
         ],
