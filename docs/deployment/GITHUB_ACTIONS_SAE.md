@@ -1,6 +1,6 @@
 # 使用 GitHub Actions 部署 GEOFlow 到 SAE
 
-`.github/workflows/deploy-sae.yml` 参考 `/home/yuanjiawei/AIProject/fzzs/case_site` 的发布链路，先执行 PHP/JavaScript 测试与格式检查，再使用 `docker/Dockerfile.prod` 的 `sae-all` target 构建一个包含 Nginx、PHP-FPM、Supervisor 和全部后台进程的最终镜像，推送到阿里云容器镜像服务（ACR），最后只调用一次 `sae DeployApplication` 发布到唯一的 GEOFlow SAE 应用。
+`.github/workflows/deploy-sae.yml` 参考 `/home/yuanjiawei/AIProject/fzzs/case_site` 的发布链路，先执行 PHP/JavaScript 测试与格式检查，再使用 `docker/Dockerfile.prod` 的 `sae-all` target 构建一个包含 Nginx、PHP-FPM、Supervisor 和全部后台进程的最终镜像，向 ACR 同时推送 commit SHA 与 `latest` 标签，最后只调用一次 `sae DeployApplication`，并使用 commit SHA 标签发布到唯一的 GEOFlow SAE 应用。
 
 这个工作流不再创建或更新 Web、Worker、Knowledge、Scheduler、Reverb 等多个 SAE 应用。它们都是同一个容器内的 Supervisor 子进程。
 
@@ -13,13 +13,20 @@ RDS 向量、迁移和首次安装验收步骤见 [RDS MySQL 隔离验收手册]
 | 推送到 `main` | 构建一个 commit 镜像，并部署到唯一的 SAE 应用 |
 | `workflow_dispatch` | 默认构建、推送并部署；取消 `deploy_app` 时仍会构建并推送镜像，只跳过 SAE 部署 |
 
-默认镜像仓库为：
+GitHub Runner 默认使用以下公开网络入口登录并推送 ACR：
 
 ```text
 crpi-7ajeyduewy90avu4.cn-shenzhen.personal.cr.aliyuncs.com/fzzs/geoflow
 ```
 
-工作流会给镜像使用 commit SHA 作为不可变 tag：
+构建会推送两个 tag：
+
+```text
+<ACR_LOGIN_REGISTRY>/<ACR_NAMESPACE>/<ACR_REPOSITORY>:<GITHUB_SHA>
+<ACR_LOGIN_REGISTRY>/<ACR_NAMESPACE>/<ACR_REPOSITORY>:latest
+```
+
+SAE 自动部署仍使用 commit SHA tag，不依赖可变的 `latest`：
 
 ```text
 <ACR_IMAGE_REGISTRY>/<ACR_NAMESPACE>/<ACR_REPOSITORY>:<GITHUB_SHA>
@@ -34,13 +41,13 @@ crpi-7ajeyduewy90avu4.cn-shenzhen.personal.cr.aliyuncs.com/fzzs/geoflow
 | Variable | 必填 | 默认值/示例 | 用途 |
 | --- | --- | --- | --- |
 | `ACR_LOGIN_REGISTRY` | 否 | `crpi-7ajeyduewy90avu4.cn-shenzhen.personal.cr.aliyuncs.com` | GitHub-hosted runner 登录并推送镜像的 ACR 地址 |
-| `ACR_IMAGE_REGISTRY` | 否 | 同 `ACR_LOGIN_REGISTRY` | SAE 拉取镜像使用的地址；有 VPC 专用地址时可单独覆盖 |
+| `ACR_IMAGE_REGISTRY` | 否 | `crpi-7ajeyduewy90avu4-vpc.cn-shenzhen.personal.cr.aliyuncs.com` | SAE 通过 VPC 拉取镜像使用的地址 |
 | `ACR_NAMESPACE` | 否 | `fzzs` | ACR 命名空间，默认 `fzzs` |
 | `ACR_REPOSITORY` | 否 | `geoflow` | ACR 仓库名，默认 `geoflow` |
 | `SAE_REGION_ID` | 否 | `cn-shenzhen` | SAE 区域，默认 `cn-shenzhen` |
 | `COMPOSER_PACKAGIST_MIRROR` | 否 | `https://mirrors.aliyun.com/composer/` | Docker 构建时可选的 Composer 镜像源 |
 
-如果 SAE 与 ACR 使用 VPC 专用拉取地址，可把 `ACR_IMAGE_REGISTRY` 设置为该地址；它必须指向同一个 ACR 实例、命名空间和仓库。GitHub Runner 使用 `ACR_LOGIN_REGISTRY` 登录和推送。
+`ACR_IMAGE_REGISTRY` 默认使用上述 VPC 地址；如果网络拓扑不同，可将它设置为同一 ACR 实例对应的 SAE 可达地址。GitHub Runner 始终使用 `ACR_LOGIN_REGISTRY` 登录和推送，避免尝试访问仅 VPC 内可达的登录入口。
 
 ## GitHub Secrets
 

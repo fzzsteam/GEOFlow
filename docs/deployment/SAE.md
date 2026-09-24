@@ -59,10 +59,11 @@ docker buildx build \
   --target sae-all \
   -f docker/Dockerfile.prod \
   -t <acr-registry>/<namespace>/geoflow:<git-sha> \
+  -t <acr-registry>/<namespace>/geoflow:latest \
   --push .
 ```
 
-GitHub Actions 使用相同的 `sae-all` target，并把唯一的 commit tag 部署到唯一的 `SAE_APP_ID`。不要把密码、AccessKey、`APP_KEY` 或完整 `.env` 文件复制进镜像；ACR 地址、应用 ID 和运行时 Secret 通过 CI/CD 或 SAE 配置维护。
+GitHub Actions 使用相同的 `sae-all` target，同时推送 commit SHA 和 `latest` 两个 tag；自动部署仍只引用 commit SHA tag，以便追溯和回滚。不要把密码、AccessKey、`APP_KEY` 或完整 `.env` 文件复制进镜像；ACR 地址、应用 ID 和运行时 Secret 通过 CI/CD 或 SAE 配置维护。
 
 ## 3. SAE 环境变量与 Secret
 

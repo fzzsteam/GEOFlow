@@ -27,6 +27,33 @@ final class DeploymentWorkflowContractTest extends TestCase
         self::assertStringNotContainsString('${{ github.sha }}-web', $workflow);
     }
 
+    public function test_workflow_publishes_latest_alias_but_deploys_commit_specific_image(): void
+    {
+        $workflow = $this->workflow();
+        $image = '${{ env.ACR_LOGIN_REGISTRY }}/${{ env.ACR_NAMESPACE }}/${{ env.ACR_REPOSITORY }}';
+
+        self::assertStringContainsString(
+            "ACR_IMAGE_REGISTRY: \${{ vars.ACR_IMAGE_REGISTRY || 'crpi-7ajeyduewy90avu4-vpc.cn-shenzhen.personal.cr.aliyuncs.com' }}",
+            $workflow,
+        );
+        self::assertStringContainsString($image.':${{ github.sha }}', $workflow);
+        self::assertStringContainsString($image.':latest', $workflow);
+        self::assertStringContainsString(
+            'app_image="${ACR_IMAGE_REGISTRY}/${ACR_NAMESPACE}/${ACR_REPOSITORY}:${GITHUB_SHA}"',
+            $workflow,
+        );
+    }
+
+    public function test_sae_environment_template_trusts_nginx_and_enables_reverb_broadcasts(): void
+    {
+        $environment = file_get_contents(dirname(__DIR__, 2).'/.env.sae.example');
+
+        self::assertIsString($environment);
+        self::assertStringContainsString('TRUSTED_PROXIES=REMOTE_ADDR', $environment);
+        self::assertStringContainsString('BROADCAST_CONNECTION=reverb', $environment);
+        self::assertStringContainsString('GEOFLOW_ADMIN_PASSWORD=put-in-sae-secret', $environment);
+    }
+
     public function test_workflow_supports_main_push_and_manual_unified_app_selection(): void
     {
         $workflow = $this->workflow();

@@ -20,10 +20,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # ACR_LOGIN_REGISTRY is reachable by the GitHub-hosted runner. When SAE
-  # uses a VPC endpoint, set ACR_IMAGE_REGISTRY to that VPC image hostname.
+  # The GitHub-hosted runner pushes through the public ACR endpoint; SAE pulls
+  # through its VPC endpoint. Override either address with a repository Variable
+  # when the registry or network topology changes.
   ACR_LOGIN_REGISTRY: ${{ vars.ACR_LOGIN_REGISTRY || 'crpi-7ajeyduewy90avu4.cn-shenzhen.personal.cr.aliyuncs.com' }}
-  ACR_IMAGE_REGISTRY: ${{ vars.ACR_IMAGE_REGISTRY || vars.ACR_LOGIN_REGISTRY || 'crpi-7ajeyduewy90avu4.cn-shenzhen.personal.cr.aliyuncs.com' }}
+  ACR_IMAGE_REGISTRY: ${{ vars.ACR_IMAGE_REGISTRY || 'crpi-7ajeyduewy90avu4-vpc.cn-shenzhen.personal.cr.aliyuncs.com' }}
   ACR_NAMESPACE: ${{ vars.ACR_NAMESPACE || 'fzzs' }}
   ACR_REPOSITORY: ${{ vars.ACR_REPOSITORY || 'geoflow' }}
   SAE_REGION_ID: ${{ vars.SAE_REGION_ID || 'cn-shenzhen' }}
@@ -107,7 +108,7 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}
 
-      - name: Build and push immutable unified SAE image
+      - name: Build and push unified SAE image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
@@ -122,6 +123,7 @@ jobs:
             COMPOSER_PACKAGIST_MIRROR=${{ vars.COMPOSER_PACKAGIST_MIRROR }}
           tags: |
             ${{ env.ACR_LOGIN_REGISTRY }}/${{ env.ACR_NAMESPACE }}/${{ env.ACR_REPOSITORY }}:${{ github.sha }}
+            ${{ env.ACR_LOGIN_REGISTRY }}/${{ env.ACR_NAMESPACE }}/${{ env.ACR_REPOSITORY }}:latest
           cache-from: type=gha,scope=geoflow-sae-unified
           cache-to: type=gha,mode=max,scope=geoflow-sae-unified
 
