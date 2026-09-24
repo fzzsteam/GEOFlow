@@ -31,7 +31,11 @@ return new class extends Migration
         }
         Schema::table('article_reviews', function (Blueprint $table): void {
             $table->string('content_hash', 64)->nullable();
-            $table->bigInteger('admin_id')->nullable()->change();
+            if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+                $table->unsignedBigInteger('admin_id')->nullable()->change();
+            } else {
+                $table->bigInteger('admin_id')->nullable()->change();
+            }
         });
         DB::table('articles')->where('status', 'published')->update(['publication_intent' => 'none']);
     }
