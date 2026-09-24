@@ -34,8 +34,18 @@
       "online": false
     },
     {
+      "name": "2026_04_18_120000_mysql_geoflow_schema",
+      "sha256": "0e9dcb166123fae9245c0b25eeefcf9d1262eee56a1f6f5bfc641ce2d690711c",
+      "online": false
+    },
+    {
       "name": "2026_04_18_120001_geoflow_knowledge_chunks_embedding_vector",
       "sha256": "f697822d549d79511b8859fc9dfbc57c785153866cd0384c5cb4183cc26c6f87",
+      "online": false
+    },
+    {
+      "name": "2026_04_18_120001_mysql_vector_column",
+      "sha256": "3b8cad947c5c3a94a9a291bd68ee698dac9c451d3590b85a9f9e26f7bbb8b642",
       "online": false
     },
     {
@@ -65,7 +75,7 @@
     },
     {
       "name": "2026_04_25_130000_add_task_article_limit_and_publish_clock",
-      "sha256": "600cf92867b0506a4e68ad54570523b70434c31ec0807f7bdda874e297a25b5b",
+      "sha256": "8f6240122bf700a0019aec25576f0a514122c571379c9297b8d0fe051a2c3228",
       "online": false
     },
     {
@@ -180,7 +190,7 @@
     },
     {
       "name": "2026_06_24_000000_create_enterprise_knowledge_tables",
-      "sha256": "3c73ac31dd800328d631cd3f702258e1e99f5a74817d38e1b41c6dcd2cd02c01",
+      "sha256": "f4ab6ce685446140e9c7244340acb6caefb0aceaf00cab0c94220944321fc769",
       "online": false
     },
     {
@@ -325,7 +335,7 @@
     },
     {
       "name": "2026_08_21_113531_create_hosted_site_allocation_requests_table",
-      "sha256": "bccdee83647ac73a87b8b385e115b7ec74e0a8a331004580a28b1ff8d0fbe262",
+      "sha256": "9021945ce7cb3d53c57608870ef3bb74003a02fcb5b387b6b33da3632f16e875",
       "online": false
     },
     {
@@ -565,7 +575,7 @@
     },
     {
       "name": "2026_08_30_200000_create_knowledge_fact_library_tables",
-      "sha256": "45714793ed27cc8249ac92b8896387f1f30288cf677fc640e72caa0890303cd9",
+      "sha256": "d89866a7e9ca921c7e213d50571108e1407e95cebffbe24bc507a4041bbfb3f5",
       "online": false
     },
     {
@@ -610,7 +620,7 @@
     },
     {
       "name": "2026_08_31_120326_create_article_ai_quality_check_sources_table",
-      "sha256": "6e87320652cb35ed43a8fdae09e92149e01f8864d6c117a00f8be92e2890ab6d",
+      "sha256": "12c656839ff3c64eb24deac329f19f9da0fd102a8eb55f4612178739851a69cb",
       "online": false
     },
     {
@@ -620,7 +630,7 @@
     },
     {
       "name": "2026_08_31_120328_add_serving_generation_to_knowledge_chunks",
-      "sha256": "52b6583ba338a77c829f73b2bfe429d5b73916103fc39dd254270cfe81baf5c5",
+      "sha256": "f51f1c0571c332341abaede06f07af34dc6f9ffe2f28aedd0af0753bdcb166e4",
       "online": false
     },
     {
@@ -834,8 +844,13 @@
       "online": false
     },
     {
+      "name": "2026_09_21_000100_mysql_compatibility",
+      "sha256": "a873f1654348309b3d1ffc59642bf3faefe5d61964eb798d15bac5109ee4e4c8",
+      "online": false
+    },
+    {
       "name": "2026_09_23_214005_add_publication_intent_to_article_workflow",
-      "sha256": "4f9c2f8793d5d70dad6b3e405b21a9e6fa946e70eb88caeaae26dc3325fd4aeb",
+      "sha256": "672060021274c4c9560daf881dba7f0ad0a11b6637123592ea5f695f62860d50",
       "online": false
     },
     {
